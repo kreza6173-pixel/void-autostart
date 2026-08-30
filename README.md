@@ -27,6 +27,9 @@ honest about what each one actually does:
 Use receiver disabling when you want to be surgical about one specific app.
 Use AppOps denial when you want a broad "keep this app foreground-only"
 rule and don't care about the distinction.
+<img width="1080" height="2400" alt="Image" src="https://github.com/user-attachments/assets/3cd5fa3b-44db-40f3-968d-f76242add4ad" />
+<img width="1080" height="2400" alt="Image" src="https://github.com/user-attachments/assets/e07b868e-b792-4f0a-bfb4-ecf59631dd58" />
+<img width="1080" height="2400" alt="Image" src="https://github.com/user-attachments/assets/b41b7bda-4627-4d5e-9d79-8286c35ef662" />
 
 ## Features
 
