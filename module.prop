@@ -1,0 +1,7 @@
+id=void-autostart
+name=VOID//AUTOSTART
+version=v1.0.0
+versionCode=1
+author=kreza6173-pixel
+description=Autostart & Boot Manager — disable specific BOOT_COMPLETED-style receivers per app, or deny background execution via AppOps, with a saved denylist reapplied on boot.
+usesShellBridge=true
