@@ -30,6 +30,7 @@
   <button class="tab active" data-tab="receivers">Boot Receivers</button>
   <button class="tab" data-tab="appops">Background Exec</button>
   <button class="tab" data-tab="denylist">Denylist</button>
+  <button class="tab" data-tab="bootlog">Boot Log</button>
 </nav>
 
 <main class="content">
@@ -72,11 +73,15 @@
         Denying these stops an app from running services/receivers, including
         its own boot receiver, when it's not in the foreground — broader and
         blunter than disabling a single receiver, but needs no per-app
-        detective work.
+        detective work. Tap a badge to toggle; the last scan is cached locally.
       </p>
       <div class="row-between">
         <input type="text" id="app-search" class="text-input" placeholder="Filter by package name…">
         <label class="check-inline"><input type="checkbox" id="app-scope-user" checked> User apps only</label>
+      </div>
+      <div class="row-between">
+        <span class="muted small" id="appops-cache-status">No cached scan. Run a scan to list installed apps.</span>
+        <button class="btn btn-secondary" id="clear-appops-cache-btn">Clear scan cache</button>
       </div>
       <div id="appops-app-list" class="app-list">
         <div class="empty-state">Run a scan to list installed apps.</div>
@@ -93,7 +98,7 @@
         Everything below is re-applied automatically when Shevery starts this
         module's session (e.g. on boot), as a safety net against ROMs or app
         updates that silently reset these settings. You can also reapply
-        on demand.
+        on demand, export it, or prune entries whose packages were uninstalled.
       </p>
       <div class="stat-grid">
         <div class="stat"><span class="stat-value" id="stat-components">—</span><span class="stat-label">receivers</span></div>
@@ -101,8 +106,44 @@
       </div>
       <div class="btn-row">
         <button class="btn btn-primary" id="reapply-btn">Reapply now</button>
+        <button class="btn btn-secondary" id="export-btn">Export to clipboard</button>
+        <button class="btn btn-secondary" id="stale-btn">Remove stale entries</button>
       </div>
       <div id="reapply-progress" class="progress-box hidden"></div>
+    </div>
+
+    <div class="card">
+      <div class="card-title">Disabled boot receivers (saved)</div>
+      <div id="denylist-components-list" class="grant-list">
+        <div class="empty-state">None.</div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-title">Denied AppOps (saved)</div>
+      <div id="denylist-appops-list" class="grant-list">
+        <div class="empty-state">None.</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- BOOT LOG -->
+  <section id="tab-bootlog" class="panel">
+    <div class="card">
+      <div class="card-title">Boot / reapply log</div>
+      <p class="muted small">
+        <code>service.sh</code> writes a timestamped line here every time Shevery
+        starts this module's session (re-applying the denylist). Entries like
+        <code>skipped uninstalled package</code> show where a saved entry was
+        ignored. Use "Reapply now" from the Denylist tab to trigger an entry on
+        demand.
+      </p>
+      <div class="btn-row">
+        <button class="btn btn-secondary" id="bootlog-refresh-btn">Refresh</button>
+        <button class="btn btn-secondary" id="bootlog-clear-btn">Clear log</button>
+      </div>
+      <pre id="boot-log-body" class="log-box hidden"></pre>
+      <div id="boot-log-empty" class="empty-state">No log entries yet.</div>
     </div>
   </section>
 

@@ -222,6 +222,7 @@ code {
 .app-status.allowed { background: var(--accent-soft); color: var(--accent); }
 .app-status.denied { background: var(--danger-soft); color: var(--danger); }
 .app-status.na { background: var(--panel); color: var(--muted); }
+.app-status.default { background: var(--warn-soft); color: var(--warn); }
 .empty-state { color: var(--muted); font-size: 12.5px; text-align: center; padding: 20px 10px; }
 
 /* Grant list (listener/dnd access) */
@@ -293,6 +294,24 @@ code {
 .progress-line { padding: 2px 0; border-bottom: 1px dashed var(--border); }
 .progress-line.ok { color: var(--accent); }
 .progress-line.err { color: var(--danger); }
+
+.log-box {
+  background: var(--panel-alt);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 10px 12px;
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  line-height: 1.6;
+  white-space: pre-wrap;
+  word-break: break-all;
+  max-height: 360px;
+  overflow: auto;
+  margin-top: 10px;
+}
+
+/* denylist sub-lists shouldn't show the default card bottom margin collapse */
+.card + .card { margin-top: 12px; }
 
 /* Appops rows: stack the package name above its badges instead of
    cramming three wide elements into one row — that's what was squeezing

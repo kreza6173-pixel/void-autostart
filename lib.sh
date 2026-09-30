@@ -20,3 +20,9 @@ LOG_FILE="/data/local/tmp/.void-autostart.log"
 log() {
   echo "$(date '+%Y-%m-%d %H:%M:%S') $*" >> "$LOG_FILE" 2>/dev/null
 }
+
+# Fast, single-call presence check. `pm path` exits non-zero when the package
+# is not installed, so this avoids pulling the whole package list for a lookup.
+pkg_installed() {
+  pm path "$1" >/dev/null 2>&1
+}
