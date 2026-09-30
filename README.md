@@ -59,6 +59,9 @@ rule and don't care about the distinction.
 - ⚡ **Cached AppOps scan** — the installed-apps scan is cached locally so the
   tab opens instantly; "Clear scan cache" forces a fresh scan. The scanner now
   distinguishes `allow`, `deny`/`ignore`, and `default` states.
+- 🎨 **Modern WebUI** — material-style dark theme: gradient header with a `v1.1.0`
+  pill, glassmorphism cards with hover lift, pill tabs, coloured per-app avatars,
+  allow/deny/default/NA badges, toast feedback, and a colour-coded boot log.
 
 ## Requirements
 
@@ -131,6 +134,26 @@ void-autostart/
 - **This isn't a full manifest/component editor.** It only manages
   enabled-state for components you've found or entered — it doesn't list
   or explain every component an app has.
+
+## Changelog
+
+### v1.1
+- **Bug fixes:** `action.sh` AppOps count was inflated (×3 per entry) and is now
+  exact; `script.js` AppOps status no longer reads only the `uid` line of
+  `cmd appops get` (which falsely rendered everything as "N/A") and now detects
+  the `default` mode; `service.sh` skips uninstalled packages at boot via a new
+  `pkg_installed()` helper in `lib.sh`.
+- **New:** Boot Log tab, denylist-to-clipboard export, stale-entry cleanup,
+  per-entry AppOps reset-to-default, localStorage-cached AppOps scan, manual
+  component validation, and UI refresh after "Reapply now".
+- **Visual:** material-style dark theme — gradient topbar + `v1.1.0` pill,
+  glassmorphism cards, pill tabs, coloured avatars/badges, toast feedback, and a
+  colour-coded boot log.
+- **Module:** `versionCode` 1 → 11; `version=v1.1.0`.
+
+### v1.0
+- Initial release: Boot Receivers + AppOps two-layer autostart control, saved
+  denylist reapplied on boot, in-app console drawer.
 
 ## License
 
