@@ -45,11 +45,26 @@
     confirmBody: document.getElementById("confirm-body"),
     confirmOk: document.getElementById("confirm-ok"),
     confirmCancel: document.getElementById("confirm-cancel"),
+    toast: document.getElementById("toast"),
   };
 
   let consoleLines = 0;
+  let consoleOpenedOnce = false;
   let denylist = { components: [], appops: [] }; // appops: [{pkg, op}]
   let appopsScan = []; // {pkg, runInBg, runAnyInBg}
+
+  // ---------- toast ----------
+
+  let toastTimer = null;
+  function showToast(text, kind, ms) {
+    clearTimeout(toastTimer);
+    el.toast.className = "toast" + (kind ? ` ${kind}` : "");
+    el.toast.textContent = text;
+    el.toast.classList.add("show");
+    toastTimer = setTimeout(() => {
+      el.toast.classList.remove("show");
+    }, ms || 2200);
+  }
 
   // ---------- shell bridge (real contract: sync call, JSON-string result) ----------
 
@@ -69,6 +84,10 @@
     line.textContent = text;
     el.consoleBody.appendChild(line);
     el.consoleBody.scrollTop = el.consoleBody.scrollHeight;
+    if (!consoleOpenedOnce) {
+      el.consoleDrawer.classList.add("open");
+      consoleOpenedOnce = true;
+    }
     while (el.consoleBody.children.length > 300) {
       el.consoleBody.removeChild(el.consoleBody.firstChild);
     }
@@ -134,7 +153,7 @@
     });
   }
 
-  // ---------- tabs ----------
+  // ---------- tabs / drawer ----------
 
   el.tabs.forEach((tab) => {
     tab.addEventListener("click", () => {
@@ -177,6 +196,19 @@
   }
 
   // ---------- boot receiver scan ----------
+
+  function avatarFor(pkg) {
+    const seg = (pkg.substring(pkg.lastIndexOf(".") + 1) || pkg).slice(0, 2).toUpperCase();
+    const label = /[A-Z]/.test(seg) ? seg : pkg.slice(0, 2).toUpperCase();
+    const tints = [
+      "rgba(111,214,196,.18)", "rgba(248,113,111,.18)", "rgba(251,190,36,.18)",
+      "rgba(132,94,248,.18)", "rgba(72,186,232,.18)", "rgba(245,150,130,.22)",
+      "rgba(127,191,95,.20)", "rgba(252,163,60,.20)",
+    ];
+    const borders = ["var(--accent-dim)", "var(--danger)", "var(--warn)", "#845ef7", "#48b6e3", "#f59684", "#7faf5f", "#fc9b3c"];
+    const h = pkg.split("").reduce((a, c) => a + c.charCodeAt(0), 0);
+    return { label, bg: tints[h % tints.length], border: borders[h % borders.length] };
+  }
 
   function renderScanResults(candidates) {
     if (candidates.length === 0) {
@@ -237,6 +269,7 @@
     await saveDenylist();
     renderDisabledComponents();
     renderDenylistEntries();
+    showToast("Boot receiver disabled and saved.", "ok");
   }
 
   function renderDisabledComponents() {
@@ -247,17 +280,24 @@
     el.disabledComponentsList.innerHTML = denylist.components.map((comp) => `
       <div class="grant-row" data-comp="${comp}">
         <span class="grant-name">${comp}</span>
-        <button class="btn btn-ghost enable-btn">Re-enable</button>
+        <button class="btn btn-ghost enable-btn grant-action">Re-enable</button>
       </div>
     `).join("");
     el.disabledComponentsList.querySelectorAll(".enable-btn").forEach((btn) => {
       btn.addEventListener("click", async () => {
         const comp = btn.closest(".grant-row").dataset.comp;
-        await exec(`pm enable ${shq(comp)}`);
+        const ok = await confirmAction("Re-enable this receiver?", `${comp} will be allowed to run again.`);
+        if (!ok) return;
+        const res = await exec(`pm enable ${shq(comp)}`);
+        if (!res.ok) {
+          logConsole(`Failed to enable ${comp}: ${(res.stderr || res.stdout || "").slice(0, 150)}`, "err");
+          return;
+        }
         denylist.components = denylist.components.filter((c) => c !== comp);
         await saveDenylist();
         renderDisabledComponents();
         renderDenylistEntries();
+        showToast("Boot receiver re-enabled.", "ok");
       });
     });
   }
@@ -276,19 +316,24 @@
     }
     el.denylistAppopsList.innerHTML = denylist.appops.map((e, i) => `
       <div class="grant-row" data-idx="${i}">
-        <span class="grant-name">${e.pkg} / ${e.op}</span>
-        <button class="btn btn-ghost reset-btn">Reset to default</button>
+        <span class="grant-name">${e.pkg} <span class="muted">/ ${e.op}</span></span>
+        <button class="btn btn-ghost reset-btn grant-action">Reset to default</button>
       </div>
     `).join("");
     el.denylistAppopsList.querySelectorAll(".reset-btn").forEach((btn) => {
       btn.addEventListener("click", async () => {
         const i = Number(btn.closest(".grant-row").dataset.idx);
         const e = denylist.appops[i];
-        await exec(`cmd appops set ${shq(e.pkg)} ${e.op} default`);
+        const res = await exec(`cmd appops set ${shq(e.pkg)} ${e.op} default`);
+        if (!res.ok) {
+          logConsole(`Failed to reset ${e.pkg} ${e.op}`, "err");
+          return;
+        }
         denylist.appops.splice(i, 1);
         await saveDenylist();
         renderDenylistEntries();
         invalidateAppopsCache();
+        showToast("AppOp reset to default.", "ok");
       });
     });
   }
@@ -314,6 +359,14 @@
     return denylist.appops.some((e) => e.pkg === pkg && e.op === op);
   }
 
+  function summaryOf(a) {
+    const parts = [a.runInBg, a.runAnyInBg].filter((x) => x !== "na");
+    if (!parts.length) return "no background ops";
+    if (parts.every((p) => p === "allowed")) return "allowed in background";
+    if (parts.every((p) => p === "denied")) return "blocked from background";
+    return "partial — " + parts.join(", ");
+  }
+
   function cacheAppopsScan() {
     try { localStorage.setItem(CACHE_KEY, JSON.stringify({ t: Date.now(), data: appopsScan })); } catch (e) {}
   }
@@ -331,19 +384,22 @@
       el.appopsAppList.innerHTML = `<div class="empty-state">${appopsScan.length ? "No apps match your filter." : "Run a scan to list installed apps."}</div>`;
       return;
     }
-    el.appopsAppList.innerHTML = rows.map((a) => `
-      <div class="app-row appops-row" data-pkg="${a.pkg}">
-        <div class="app-pkg">${a.pkg}</div>
+    el.appopsAppList.innerHTML = rows.map((a) => {
+      const av = avatarFor(a.pkg);
+      return `
+      <div class="app-row" data-pkg="${a.pkg}">
+        <div class="app-avatar" style="background:${av.bg};border-color:${av.border};">${av.label}</div>
+        <div class="app-meta">
+          <div class="app-pkg">${a.pkg}</div>
+          <div class="app-sub muted">${summaryOf(a)}</div>
+        </div>
         <div class="appops-badges">
-          <span class="app-status ${badgeClass(a.runInBg)}" data-op="RUN_IN_BACKGROUND" title="RUN_IN_BACKGROUND">
-            IN_BG: ${badgeText(a.runInBg)}
-          </span>
-          <span class="app-status ${badgeClass(a.runAnyInBg)}" data-op="RUN_ANY_IN_BACKGROUND" title="RUN_ANY_IN_BACKGROUND">
-            ANY_BG: ${badgeText(a.runAnyInBg)}
-          </span>
+          <span class="app-status ${badgeClass(a.runInBg)}" data-op="RUN_IN_BACKGROUND" title="RUN_IN_BACKGROUND">${badgeText(a.runInBg)}</span>
+          <span class="app-status ${badgeClass(a.runAnyInBg)}" data-op="RUN_ANY_IN_BACKGROUND" title="RUN_ANY_IN_BACKGROUND">${badgeText(a.runAnyInBg)}</span>
         </div>
       </div>
-    `).join("");
+      `;
+    }).join("");
 
     el.appopsAppList.querySelectorAll(".app-status").forEach((badge) => {
       badge.addEventListener("click", async () => {
@@ -354,7 +410,11 @@
         const field = op === "RUN_IN_BACKGROUND" ? "runInBg" : "runAnyInBg";
         if (!app || app[field] === "na") return;
         const goingToDeny = app[field] !== "denied";
-        await exec(`cmd appops set ${shq(pkg)} ${op} ${goingToDeny ? "deny" : "allow"}`);
+        const res = await exec(`cmd appops set ${shq(pkg)} ${op} ${goingToDeny ? "deny" : "allow"}`);
+        if (!res.ok) {
+          logConsole(`Failed to set ${pkg} ${op}`, "err");
+          return;
+        }
         app[field] = goingToDeny ? "denied" : "allowed";
         if (goingToDeny) {
           if (!isDenied(pkg, op)) denylist.appops.push({ pkg, op });
@@ -383,6 +443,7 @@
 
   el.clearAppopsCacheBtn.addEventListener("click", () => {
     invalidateAppopsCache();
+    showToast("AppOps scan cache cleared.", "ok");
   });
 
   async function scanAppops(scopeFlag) {
@@ -407,6 +468,7 @@
     cacheAppopsScan();
     el.appopsCacheStatus.textContent = appopsScan.length ? `${appopsScan.length} app(s) cached.` : "Scan complete — no apps found.";
     renderAppopsList();
+    showToast(`Scanned ${appopsScan.length} app(s).`, "ok");
   }
 
   function loadCachedAppops() {
@@ -433,7 +495,13 @@
   }
 
   el.reapplyBtn.addEventListener("click", async () => {
+    const ok = await confirmAction(
+      "Reapply denylist now?",
+      "This will re-disable saved boot receivers and re-deny saved AppOps entries, as if on boot."
+    );
+    if (!ok) return;
     el.reapplyBtn.disabled = true;
+    el.reapplyBtn.textContent = "Reapplying…";
     el.reapplyProgress.innerHTML = "";
     el.reapplyProgress.classList.remove("hidden");
     progressLog(el.reapplyProgress, `Reapplying ${denylist.components.length} receiver(s) and ${denylist.appops.length} appops entries…`);
@@ -446,7 +514,7 @@
       const res = await exec(`cmd appops set ${shq(entry.pkg)} ${entry.op} deny`);
       progressLog(el.reapplyProgress, (res.ok ? "✓ " : "✗ ") + `${entry.pkg} ${entry.op}`, res.ok ? "ok" : "err");
     }
-    // Keep the cached appops view consistent with the denylist that was just applied.
+    // Keep the cached AppOps view consistent with the denylist that was just applied.
     for (const entry of denylist.appops) {
       const a = appopsScan.find((x) => x.pkg === entry.pkg);
       if (a) {
@@ -459,6 +527,8 @@
     renderDenylistEntries();
     progressLog(el.reapplyProgress, "Done.", "ok");
     el.reapplyBtn.disabled = false;
+    el.reapplyBtn.textContent = "Reapply now";
+    showToast("Denylist reapplied.", "ok");
   });
 
   // ---------- stale-entry cleanup ----------
@@ -468,7 +538,7 @@
     denylist.components.forEach((c) => pkgs.add(c.split("/")[0]));
     denylist.appops.forEach((e) => pkgs.add(e.pkg));
     if (pkgs.size === 0) {
-      logConsole("Denylist is empty; nothing to prune.", "err");
+      showToast("Denylist is empty.", "err");
       return;
     }
     const list = [...pkgs].map(shq).join(" ");
@@ -487,6 +557,7 @@
     });
     if (stale.size === 0) {
       progressLog(el.reapplyProgress, "No stale entries found.", "ok");
+      showToast("No stale entries found.", "ok");
       return;
     }
     const beforeC = denylist.components.length;
@@ -497,6 +568,7 @@
     renderDenylistEntries();
     progressLog(el.reapplyProgress, `Removed ${stale.size} stale package(s): ${[...stale].join(", ")}`, "ok");
     progressLog(el.reapplyProgress, `Components ${beforeC} → ${denylist.components.length}; AppOps ${beforeA} → ${denylist.appops.length}.`, "ok");
+    showToast(`Removed ${stale.size} stale package(s).`, "ok");
   });
 
   // ---------- denylist export ----------
@@ -505,14 +577,20 @@
     const text = JSON.stringify(denylist, null, 2);
     try {
       await navigator.clipboard.writeText(text);
-      logConsole(`Denylist exported (${denylist.components.length} receivers, ${denylist.appops.length} appops) to clipboard.`);
+      logConsole(`Denylist JSON (${denylist.components.length} receivers, ${denylist.appops.length} appops):`, "ok");
+      logConsole(text, "ok");
+      showToast(`Denylist exported to clipboard.`, "ok");
     } catch (e) {
       el.reapplyProgress.innerHTML = "";
       el.reapplyProgress.classList.remove("hidden");
       progressLog(el.reapplyProgress, "Clipboard unavailable. Denylist JSON below:");
-      const block = document.createElement("code");
-      block.style.display = "block";
+      const block = document.createElement("pre");
+      block.style.background = "var(--surface)";
+      block.style.border = "1px solid var(--border)";
+      block.style.borderRadius = "var(--radius-sm)";
+      block.style.padding = "8px";
       block.style.whiteSpace = "pre-wrap";
+      block.style.overflow = "auto";
       block.textContent = text;
       el.reapplyProgress.appendChild(block);
     }
@@ -521,6 +599,7 @@
   // ---------- boot log view ----------
 
   async function loadBootLog() {
+    el.bootLogBody.innerHTML = "";
     el.bootLogBody.classList.add("hidden");
     el.bootLogEmpty.classList.remove("hidden");
     const res = await exec(`cat ${shq(LOG_FILE)} 2>/dev/null`);
@@ -529,18 +608,32 @@
       el.bootLogEmpty.textContent = "No log entries yet.";
       return;
     }
-    el.bootLogBody.textContent = text;
     el.bootLogBody.classList.remove("hidden");
     el.bootLogEmpty.classList.add("hidden");
+    text.split("\n").forEach((line) => {
+      const div = document.createElement("div");
+      div.className = "log-line";
+      const low = line.toLowerCase();
+      if (/skipped|uninstalled/.test(low)) div.classList.add("warn");
+      else if (/error|fail|exception|cannot/.test(low)) div.classList.add("err");
+      else div.classList.add("ok-line");
+      div.textContent = line;
+      el.bootLogBody.appendChild(div);
+    });
+    el.bootLogBody.scrollTop = el.bootLogBody.scrollHeight;
   }
 
   el.bootlogRefreshBtn.addEventListener("click", loadBootLog);
 
   el.bootlogClearBtn.addEventListener("click", async () => {
+    const ok = await confirmAction("Clear boot log?", "This removes /data/local/tmp/.void-autostart.log. The log will be recreated on the next session/reapply.");
+    if (!ok) return;
     await exec(`rm -f ${shq(LOG_FILE)}`);
-    el.bootLogEmpty.textContent = "Log cleared.";
+    el.bootLogBody.innerHTML = "";
     el.bootLogBody.classList.add("hidden");
     el.bootLogEmpty.classList.remove("hidden");
+    el.bootLogEmpty.textContent = "Log cleared.";
+    showToast("Boot log cleared.", "ok");
   });
 
   // ---------- bridge retry / init ----------
