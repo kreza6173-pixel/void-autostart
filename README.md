@@ -46,6 +46,19 @@ rule and don't care about the distinction.
   "Reapply now" button does the same on demand.
 - 🖥 **Console drawer** — every shell command this module runs, and its raw
   output, is visible in-app.
+- 🧹 **Stale-entry cleanup** — the Denylist tab detects and removes entries whose
+  packages were uninstalled; `service.sh` also skips uninstalled packages at
+  boot so a stale saved entry never spams errors.
+- 📤 **Denylist export** — copy the full saved denylist to the clipboard for
+  backup or sharing between devices.
+- 📝 **Boot / reapply log** — a Boot Log tab surfaces the timestamped log that
+  `service.sh` writes on each session start (including `skipped uninstalled
+  package` lines), so you can confirm the denylist actually re-applied.
+- 🔄 **AppOps reset to default** — any denied AppOps entry can be reset back to
+  the app's default mode from the Denylist tab.
+- ⚡ **Cached AppOps scan** — the installed-apps scan is cached locally so the
+  tab opens instantly; "Clear scan cache" forces a fresh scan. The scanner now
+  distinguishes `allow`, `deny`/`ignore`, and `default` states.
 
 ## Requirements
 
@@ -91,6 +104,7 @@ void-autostart/
 | Background exec read | `cmd appops get <pkg> RUN_IN_BACKGROUND` / `RUN_ANY_IN_BACKGROUND` |
 | Background exec write | `cmd appops set <pkg> <op> <allow\|deny>` |
 | Denylist | JSON file at `/data/local/tmp/.void-autostart-denylist.json`, written by the WebUI, reapplied by `service.sh` and mirrored by the "Reapply now" button |
+| Session log | Timestamped lines appended to `/data/local/tmp/.void-autostart.log` by `service.sh`; surfaced in the Boot Log tab |
 
 ## Safety architecture
 

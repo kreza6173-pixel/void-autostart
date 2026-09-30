@@ -30,6 +30,10 @@ if [ -n "$components_blob" ]; then
       log "skipped protected package in components: $comp"
       continue
     fi
+    if ! pkg_installed "$pkg"; then
+      log "skipped uninstalled package in components: $comp"
+      continue
+    fi
     pm disable "$comp" >/dev/null 2>&1
     log "disabled component: $comp"
   done
@@ -44,6 +48,10 @@ if [ -n "$appops_blob" ]; then
     [ -n "$pkg" ] && [ -n "$op" ] || continue
     if is_protected "$pkg"; then
       log "skipped protected package in appops: $pkg"
+      continue
+    fi
+    if ! pkg_installed "$pkg"; then
+      log "skipped uninstalled package in appops: $pkg $op"
       continue
     fi
     cmd appops set "$pkg" "$op" deny >/dev/null 2>&1
